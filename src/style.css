@@ -119,9 +119,9 @@ body {
 }
 
 .wheel-segment:hover {
-  opacity: 0.9;
-  transform: scale(1.02);
-  /* Slight pop */
+  opacity: 1;
+  filter: brightness(1.1);
+  /* Removed transform scale to prevent distortion */
   z-index: 10;
 }
 

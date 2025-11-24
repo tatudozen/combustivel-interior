@@ -56,19 +56,26 @@ function createWheel() {
   svg.setAttribute("viewBox", "0 0 300 300");
   svg.style.width = "100%";
   svg.style.height = "100%";
-  svg.style.transform = "rotate(-162deg)"; // Start Curiosidade at Top Left (Reinvencao's spot)
+  // Removed CSS transform, handling rotation in logic
 
   const categoryKeys = Object.keys(categories);
   const total = categoryKeys.length;
   const radius = 150;
   const center = 150;
-  const textRadius = 110; // Radius for text path
+  const textRadius = 115; // Slightly adjusted for text path
+
+  // Offset to start Curiosidade at Top Left (approx -162deg relative to standard 0 at 3 o'clock)
+  // Standard 0 is 3 o'clock. Top is -90.
+  // We want Curiosidade (index 0) to be at "Reinvencao's spot".
+  // Let's stick to the visual rotation requested: -162deg.
+  // We will apply this offset to all angles.
+  const rotationOffset = -162;
 
   categoryKeys.forEach((key, index) => {
-    const startAngle = (index * 360) / total;
-    const endAngle = ((index + 1) * 360) / total;
+    const startAngle = (index * 360) / total + rotationOffset;
+    const endAngle = ((index + 1) * 360) / total + rotationOffset;
 
-    // Calculate path
+    // Calculate path for segment
     const x1 = center + radius * Math.cos(Math.PI * startAngle / 180);
     const y1 = center + radius * Math.sin(Math.PI * startAngle / 180);
     const x2 = center + radius * Math.cos(Math.PI * endAngle / 180);
@@ -87,34 +94,61 @@ function createWheel() {
     path.setAttribute("stroke", "white");
     path.setAttribute("stroke-width", "2");
 
-    // Text Path
-    // We need a path for the text to follow. It should be an arc in the middle of the segment.
-    // To make text readable, we might need to reverse the path for the bottom half.
-    // For simplicity in this MVP, we'll place text using transform/rotate which is easier to center.
+    // Text Path Logic
+    // We need a path specifically for the text to follow.
+    // It should be an arc at textRadius.
+    // Determine if text needs to be flipped (for bottom half readability)
 
-    const midAngle = startAngle + (endAngle - startAngle) / 2;
-    const textX = center + textRadius * Math.cos(Math.PI * midAngle / 180);
-    const textY = center + textRadius * Math.sin(Math.PI * midAngle / 180);
+    // Normalize angles to 0-360 for easier checking
+    let midAngle = (startAngle + endAngle) / 2;
+    // Normalize to 0-360 range
+    midAngle = (midAngle % 360 + 360) % 360;
 
-    // Calculate rotation for text to be readable
-    let rotation = midAngle;
-    if (midAngle > 90 && midAngle < 270) {
-      rotation += 180;
+    const isBottomHalf = midAngle > 0 && midAngle < 180; // SVG Y is down, so 0-180 is actually bottom half in standard math but let's check visual
+    // Visual check: 0 is 3 o'clock. 90 is 6 o'clock (bottom). 180 is 9 o'clock. 270 is 12 o'clock (top).
+    // So bottom half is roughly 0 to 180.
+
+    let textPathData;
+    if (isBottomHalf) {
+      // Reverse path for readability (Counter-Clockwise)
+      const tx1 = center + textRadius * Math.cos(Math.PI * endAngle / 180);
+      const ty1 = center + textRadius * Math.sin(Math.PI * endAngle / 180);
+      const tx2 = center + textRadius * Math.cos(Math.PI * startAngle / 180);
+      const ty2 = center + textRadius * Math.sin(Math.PI * startAngle / 180);
+      textPathData = `M ${tx1} ${ty1} A ${textRadius} ${textRadius} 0 0 0 ${tx2} ${ty2}`;
+    } else {
+      // Normal path (Clockwise)
+      const tx1 = center + textRadius * Math.cos(Math.PI * startAngle / 180);
+      const ty1 = center + textRadius * Math.sin(Math.PI * startAngle / 180);
+      const tx2 = center + textRadius * Math.cos(Math.PI * endAngle / 180);
+      const ty2 = center + textRadius * Math.sin(Math.PI * endAngle / 180);
+      textPathData = `M ${tx1} ${ty1} A ${textRadius} ${textRadius} 0 0 1 ${tx2} ${ty2}`;
     }
 
+    const pathId = `text-path-${key}`;
+    const defs = document.createElementNS(svgNS, "defs");
+    const textPathCurve = document.createElementNS(svgNS, "path");
+    textPathCurve.setAttribute("id", pathId);
+    textPathCurve.setAttribute("d", textPathData);
+    defs.appendChild(textPathCurve);
+
     const text = document.createElementNS(svgNS, "text");
-    text.setAttribute("x", textX);
-    text.setAttribute("y", textY);
-    text.setAttribute("text-anchor", "middle");
-    text.setAttribute("dominant-baseline", "middle");
     text.setAttribute("fill", "white");
     text.setAttribute("font-size", "14");
     text.setAttribute("font-weight", "bold");
     text.setAttribute("font-family", "Outfit, sans-serif");
-    text.setAttribute("transform", `rotate(${rotation}, ${textX}, ${textY}) rotate(90, ${textX}, ${textY})`); // Extra 90 because wheel is rotated -90
-    text.textContent = categories[key].label;
     text.style.pointerEvents = "none";
+    // Adjust letter spacing for better curve fit if needed
+    text.setAttribute("letter-spacing", "1");
 
+    const textPathEl = document.createElementNS(svgNS, "textPath");
+    textPathEl.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", `#${pathId}`);
+    textPathEl.setAttribute("startOffset", "50%");
+    textPathEl.setAttribute("text-anchor", "middle");
+    textPathEl.textContent = categories[key].label;
+
+    text.appendChild(textPathEl);
+    g.appendChild(defs);
     g.appendChild(path);
     g.appendChild(text);
     svg.appendChild(g);
